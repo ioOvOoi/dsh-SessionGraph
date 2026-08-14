@@ -6,7 +6,7 @@
 
 ## Destination
 
-一个**可运行的 DSH 动态插件原型**:把当前会话实时渲染成**竖排脊柱图谱**(常驻右侧边栏 `shell.overlay`,已删除 `conversation.view` tab),节点 = 每条消息 + 每次 agent 切换;支持 **Pi /tree 式同会话跳转**(点击节点滚动定位到聊天对应消息);只显示用户/助手**自然语音**(工具/上下文默认隐藏,头部开关可开);旧回合自动折叠、可展开;视觉跟随 DSH 主题。**验收标准 = 完整演示路径**:新会话聊几轮 → 侧边栏图谱实时长节点 → 点击历史节点跳转回聊天 → 再聊几轮。
+一个**可运行的 DSH 动态插件原型**:把当前会话实时渲染成**竖排脊柱图谱**(常驻右侧 `details` 布局列——真实三列 grid 的一部分,自动打开、可拖拽调宽,已删除 `conversation.view` tab 与弹出式 overlay),节点 = 每条消息 + 每次 agent 切换;支持 **Pi /tree 式同会话跳转**(点击节点滚动定位到聊天对应消息);只显示用户/助手**自然语音**(工具/上下文默认隐藏,头部开关可开);旧回合自动折叠、可展开;视觉跟随 DSH 主题。**验收标准 = 完整演示路径**:新会话聊几轮 → 图谱实时长节点 → 点击历史节点跳转回聊天 → 再聊几轮。
 
 ## Notes
 
@@ -24,7 +24,7 @@
 - [01-会话图谱数据模型](https://github.com/ioOvOoi/dsh-SessionGraph/issues/7) — 节点分类对齐 trajectory:USER/CONTEXT/ASSISTANT/TOOL(独立轻节点)/TURN(轻节点);agent 切换节点 = subagent/start|end 与子会话首节点合并,父→子边;parentId = 日志前驱;宿主 = sessionProjections(按会话分区,dispose 保留);游标 = activeCursor 字段;冷启动 = 增量 readFrom + 全量兜底。**注:Q1 已修订(2026-08)——TOOL/TURN 从折叠元数据升级为独立轻节点**。
 - [02-跳转语义与会话写入](https://github.com/ioOvOoi/dsh-SessionGraph/issues/8) — B1:跳转时对被放弃分支段执行 compaction 式 replace 遮蔽,旧分支不进模型上下文、图上显示遮蔽态;确认交互 = 详情面板"跳转到此"。
 - [04-图谱渲染引擎](https://github.com/ioOvOoi/dsh-SessionGraph/issues/10) — 纯 SVG 自绘;横向时间线 + 分支上下展开 + 当前路径高亮 + 按 agent 折叠 + 生长动画;长会话性能策略延后(fog)。
-- [05-面板与交互设计](https://github.com/ioOvOoi/dsh-SessionGraph/issues/11) — conversation.view 新增 graph tab;右滑详情面板(全文 + 元数据,aihero 风格,主题跟随);跳转确认 = 面板内按钮。**注:Q2 已修订(2026-08)——删除 conversation.view tab;完整图谱(缩放/平移/折叠/定位/全图/工具开关)整体迁移至右侧边栏(shell.overlay,轮询 sessiongraph.get 全量节点);点击节点 = 跳转聊天对应消息(锚点 + 闪烁)**。
+- [05-面板与交互设计](https://github.com/ioOvOoi/dsh-SessionGraph/issues/11) — conversation.view 新增 graph tab;右滑详情面板(全文 + 元数据,aihero 风格,主题跟随);跳转确认 = 面板内按钮。**注:Q3 已修订(2026-08)——删除 conversation.view tab 与弹出式 overlay;完整图谱(缩放/平移/折叠/定位/全图/工具开关)注册到 `details` 真实布局列(dsh-client-ui-layout 三列 grid,自动 openDetails、可拖拽调宽、动态注册优先胜出);数据改走 useProjection 实时投影(不再轮询);点击节点 = 跳转聊天对应消息(锚点 + 闪烁)。代价:取代 shipped 工具详情面板**。
 
 ## Not yet specified
 
