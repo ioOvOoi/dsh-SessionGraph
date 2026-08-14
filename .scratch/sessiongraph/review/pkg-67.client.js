@@ -40,6 +40,9 @@ return {
 .sg-slim-dot{position:relative;z-index:1;flex:none;border-radius:50%;cursor:pointer;transition:transform .12s ease;box-sizing:border-box;}
 .sg-slim-dot:hover{transform:scale(1.6);}
 .sg-slim-dot.sg-cur{box-shadow:0 0 0 2px var(--dsw-specific-sidebar-fill), 0 0 0 3px #b2954a;}
+/* T5: 操作原子悬停反馈(复用工具原子视觉,仅加交互反馈) */
+.sg-op{cursor:pointer;transition:opacity .15s ease;}
+.sg-op:hover{opacity:.85;}
 `)
 
     const reasonText = (reason) => {
@@ -329,7 +332,8 @@ return {
     // ===== pkg-67: 公共渲染函数 — tool/switch/操作原子共用 =====
     //   封装 tool 风格原子的完整渲染(circle + text),所有原子类型复用此函数
     //   关键:onClick 内 stopPropagation,防止事件冒泡到父级节点的 onClick
-    const renderToolAtom = (x, y, r, fill, stroke, dash, iconText, title, onClick, disabled, key) => {
+    //   showLabel=false 时隐藏图标文字(低缩放,红队 P2);hoverCls 提供悬停反馈(红队 P3)
+    const renderToolAtom = (x, y, r, fill, stroke, dash, iconText, title, onClick, disabled, key, showLabel, hoverCls) => {
       const elems = []
       // 透明命中圈(扩大可点击区域,与节点 HIT_PAD 同理)
       elems.push(React.createElement('circle', {
@@ -339,23 +343,26 @@ return {
         onClick: (e) => { e.stopPropagation(); if (!disabled && onClick) onClick(e) },
         title: title,
       }))
-      // 主体圆(复用 tool 或 switch 视觉)
+      // 主体圆(复用 tool 或 switch 视觉);hoverCls 提供悬停透明度反馈
       elems.push(React.createElement('circle', {
         key: key + '-c', cx: x, cy: y, r: r,
         fill: fill,
         stroke: stroke || 'none', strokeWidth: stroke ? 1.5 : 0,
         strokeDasharray: dash || undefined,
+        className: hoverCls || undefined,
         // 禁用态:opacity .35 + pointer-events:none
         style: disabled ? { opacity: 0.35, pointerEvents: 'none' } : undefined,
         onClick: (e) => { e.stopPropagation(); if (!disabled && onClick) onClick(e) },
       }))
-      // 图标文字(SVG text, pointer-events:none,复用 sg-label-text 样式)
-      elems.push(React.createElement('text', {
-        key: key + '-t', x: x, y: y + 3,
-        textAnchor: 'middle',
-        className: 'sg-label-text',
-        style: { pointerEvents: 'none', fontSize: '9px', fill: disabled ? '#b0a89a' : '#6f6a62' },
-      }, iconText))
+      // 图标文字(SVG text, pointer-events:none,复用 sg-label-text 样式);showLabel=false 隐藏
+      if (showLabel !== false) {
+        elems.push(React.createElement('text', {
+          key: key + '-t', x: x, y: y + 3,
+          textAnchor: 'middle',
+          className: 'sg-label-text',
+          style: { pointerEvents: 'none', fontSize: '9px', fill: disabled ? '#b0a89a' : '#6f6a62' },
+        }, iconText))
+      }
       return elems
     }
 
@@ -800,6 +807,7 @@ return {
               () => { setSelectedId(n.id); jumpNode(n, items); setPendingJump(null) },
               false,                        // switch 节点永不 disabled
               'sw-' + n.id,
+              showLabels,                   // 低缩放隐藏标签(红队 P2)
             ),
           ))
         } else if (n.category === 'tool') {
@@ -821,6 +829,7 @@ return {
               () => { setSelectedId(n.id); jumpNode(n, items) },
               false,                         // tool 节点永不 disabled
               'tl-' + n.id,
+              showLabels,                    // 低缩放隐藏标签(红队 P2)
             ),
           ))
         } else {
@@ -912,6 +921,7 @@ return {
               running ? '当前回合进行中' : '切到这里继续',
               confirmJump, running,
               'act-j',
+              true, 'sg-op',               // 操作原子恒显标签 + 悬停反馈(红队 P3)
             ),
           ))
 
@@ -945,6 +955,7 @@ return {
               },
               foldDisabled,
               'act-f',
+              true, 'sg-op',               // 操作原子恒显标签 + 悬停反馈(红队 P3)
             ),
           ))
 
@@ -959,6 +970,7 @@ return {
               '取消',
               cancelJump, false,
               'act-c',
+              true, 'sg-op',               // 操作原子恒显标签 + 悬停反馈(红队 P3)
             ),
           ))
         }
