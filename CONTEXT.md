@@ -17,6 +17,6 @@
 - 交互:Pi /tree 式同会话跳转(游标移动),非 fork;点击节点→图谱聚焦+右侧详情面板(大号衬线标题+药丸标签关联+全文)。
 - 界面:原型=叠加面板;究极版=图谱即主界面(远景)。
 - 视觉:**灰阶单色+纸张纹理背景**,全部标签等宽字体,分区标题小号大写加宽字距,复刻 aihero.dev 知识图谱的"博物馆式知识地图"氛围。
-- 节点模型(01 号 ticket,2026-08):消息节点仅 user/message + assistant/message;tool/result 与 turn/start|end 折叠为节点元数据(不作独立节点);agent 切换节点 = subagent/start|end 与子会话首节点合并为一个节点,建父→子边;parentId = 日志前驱。
+- 节点模型(01 号 ticket,2026-08;**Q1 已修订**):分类词汇表对齐 trajectory——USER(user/message 且 source.kind='user')、CONTEXT(注入上下文)、ASSISTANT、TOOL(工具调用独立轻节点,不再折叠进元数据)、TURN(回合边界轻节点);agent 切换节点 = subagent/start|end 与子会话首节点合并为一个节点,建父→子边;parentId = 日志前驱。
 - 图状态宿主(01 号 ticket):sidecar 图状态存 sessionProjections,按 session.id 分区(每会话一棵图);游标 = 图状态内 activeCursor 字段;会话 dispose 保留图数据、仅清运行态。
 - 跳转上下文隔离(02 号 ticket):方案 B1——跳转时对被放弃的分支段执行 compaction 式 replace 遮蔽为摘要节点,旧分支不进模型上下文、图上显示为遮蔽态。

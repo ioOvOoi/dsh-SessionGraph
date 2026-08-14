@@ -21,7 +21,7 @@
 ## Decisions so far
 
 - [03-实时事件接入](https://github.com/ioOvOoi/dsh-SessionGraph/issues/9) — 事件接入方案已定:Host 监听 `session/event`(唯一消息增补流,event.type 判别)+ session/created|disposed + subagent/start|end;反查 traceSession/listEvents;Client 经 sessionProjections/useProjection 消费。研究资产:`docs/dsh-host-event-system-research.md`、`research-dsh-platform.md`。
-- [01-会话图谱数据模型](https://github.com/ioOvOoi/dsh-SessionGraph/issues/7) — 节点 = 消息(user/assistant)+ agent 切换(与子会话首节点合并,父→子边);tool/result 与 turn 边界折叠为元数据;parentId = 日志前驱;宿主 = sessionProjections(按会话分区,dispose 保留);游标 = activeCursor 字段;冷启动 = 增量 readFrom + 全量兜底。
+- [01-会话图谱数据模型](https://github.com/ioOvOoi/dsh-SessionGraph/issues/7) — 节点分类对齐 trajectory:USER/CONTEXT/ASSISTANT/TOOL(独立轻节点)/TURN(轻节点);agent 切换节点 = subagent/start|end 与子会话首节点合并,父→子边;parentId = 日志前驱;宿主 = sessionProjections(按会话分区,dispose 保留);游标 = activeCursor 字段;冷启动 = 增量 readFrom + 全量兜底。**注:Q1 已修订(2026-08)——TOOL/TURN 从折叠元数据升级为独立轻节点**。
 - [02-跳转语义与会话写入](https://github.com/ioOvOoi/dsh-SessionGraph/issues/8) — B1:跳转时对被放弃分支段执行 compaction 式 replace 遮蔽,旧分支不进模型上下文、图上显示遮蔽态;确认交互 = 详情面板"跳转到此"。
 - [04-图谱渲染引擎](https://github.com/ioOvOoi/dsh-SessionGraph/issues/10) — 纯 SVG 自绘;横向时间线 + 分支上下展开 + 当前路径高亮 + 按 agent 折叠 + 生长动画;长会话性能策略延后(fog)。
 - [05-面板与交互设计](https://github.com/ioOvOoi/dsh-SessionGraph/issues/11) — conversation.view 新增 graph tab;右滑详情面板(全文 + 元数据,aihero 风格,主题跟随);跳转确认 = 面板内按钮。
