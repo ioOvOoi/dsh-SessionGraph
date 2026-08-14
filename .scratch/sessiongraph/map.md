@@ -2,6 +2,8 @@
 
 标签:`wayfinder:map`
 
+> 规范追踪器已迁至 GitHub:[地图 #6](https://github.com/ioOvOoi/dsh-SessionGraph/issues/6),其下为决策票(#7-#11)与实现票(#1-#5)。本文件为仓库内镜像。
+
 ## Destination
 
 一个**可运行的 DSH 动态插件原型**:把当前会话实时渲染成**横向时间线 + 分支图谱**(叠加面板,作为 `conversation.view` 的新视图 tab),节点 = 每条消息 + 每次 agent 切换;支持 **Pi /tree 式同会话跳转**(游标移到历史节点,新消息从那里长出新分支,旧分支保留);节点详情 = 全文 + 元数据;按 agent 分组可折叠;视觉跟随 DSH 主题。**验收标准 = 完整演示路径**:新会话聊几轮 → 图谱实时长节点 → 跳转到历史点继续 → 分支出现且当前路径高亮 → 再聊几轮。
@@ -18,11 +20,11 @@
 
 ## Decisions so far
 
-- [03-实时事件接入](issues/03-实时事件接入.md) — 事件接入方案已定:Host 监听 `session/event`(唯一消息增补流,event.type 判别)+ session/created|disposed + subagent/start|end;反查 traceSession/listEvents;Client 经 sessionProjections/useProjection 消费。研究资产:`docs/dsh-host-event-system-research.md`、`research-dsh-platform.md`。
-- [01-会话图谱数据模型](issues/01-会话图谱数据模型.md) — 节点 = 消息(user/assistant)+ agent 切换(与子会话首节点合并,父→子边);tool/result 与 turn 边界折叠为元数据;parentId = 日志前驱;宿主 = sessionProjections(按会话分区,dispose 保留);游标 = activeCursor 字段;冷启动 = 增量 readFrom + 全量兜底。
-- [02-跳转语义与会话写入](issues/02-跳转语义与会话写入.md) — B1:跳转时对被放弃分支段执行 compaction 式 replace 遮蔽,旧分支不进模型上下文、图上显示遮蔽态;确认交互 = 详情面板"跳转到此"。
-- [04-图谱渲染引擎](issues/04-图谱渲染引擎.md) — 纯 SVG 自绘;横向时间线 + 分支上下展开 + 当前路径高亮 + 按 agent 折叠 + 生长动画;长会话性能策略延后(fog)。
-- [05-面板与交互设计](issues/05-面板与交互设计.md) — conversation.view 新增 graph tab;右滑详情面板(全文 + 元数据,aihero 风格,主题跟随);跳转确认 = 面板内按钮。
+- [03-实时事件接入](https://github.com/ioOvOoi/dsh-SessionGraph/issues/9) — 事件接入方案已定:Host 监听 `session/event`(唯一消息增补流,event.type 判别)+ session/created|disposed + subagent/start|end;反查 traceSession/listEvents;Client 经 sessionProjections/useProjection 消费。研究资产:`docs/dsh-host-event-system-research.md`、`research-dsh-platform.md`。
+- [01-会话图谱数据模型](https://github.com/ioOvOoi/dsh-SessionGraph/issues/7) — 节点 = 消息(user/assistant)+ agent 切换(与子会话首节点合并,父→子边);tool/result 与 turn 边界折叠为元数据;parentId = 日志前驱;宿主 = sessionProjections(按会话分区,dispose 保留);游标 = activeCursor 字段;冷启动 = 增量 readFrom + 全量兜底。
+- [02-跳转语义与会话写入](https://github.com/ioOvOoi/dsh-SessionGraph/issues/8) — B1:跳转时对被放弃分支段执行 compaction 式 replace 遮蔽,旧分支不进模型上下文、图上显示遮蔽态;确认交互 = 详情面板"跳转到此"。
+- [04-图谱渲染引擎](https://github.com/ioOvOoi/dsh-SessionGraph/issues/10) — 纯 SVG 自绘;横向时间线 + 分支上下展开 + 当前路径高亮 + 按 agent 折叠 + 生长动画;长会话性能策略延后(fog)。
+- [05-面板与交互设计](https://github.com/ioOvOoi/dsh-SessionGraph/issues/11) — conversation.view 新增 graph tab;右滑详情面板(全文 + 元数据,aihero 风格,主题跟随);跳转确认 = 面板内按钮。
 
 ## Not yet specified
 
