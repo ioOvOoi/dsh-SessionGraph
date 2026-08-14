@@ -29,7 +29,7 @@
 ## Not yet specified
 
 - **自动压缩 → 无限上下文**:机制已现成(compaction 的 replace 遮蔽,原事件保留可读);远景 fog = 压缩策略(何时自动触发、摘要粒度、被遮蔽分支的展示)。T02 的 B1 方案(跳转时遮蔽)是它的最小形态,先落地 B1,策略问题随之可提出。
-- **子 agent 全局会话图谱**:数据已现成(header parentSession + traceSession + listDescendants,每个子 agent 是自己的会话)。**已立项 T6(#12,2026-08)**:委派节点不再只是小圆点,点击展开子会话完整原子图谱(形态待用户拍板:A 就地内联 / B 图谱级切换(推荐)/ C 会话整体切换);可行性研究见 `research-t5/E-child-session-data.md`。远景 fog = 递归嵌套渲染与跨会话循环。
+- **子 agent 全局会话图谱**:数据已现成(header parentSession + traceSession + listDescendants,每个子 agent 是自己的会话)。**已立项 T6(#12,2026-08)**:委派节点不再只是小圆点;形态已定案 = **就地内联展开**(点击委派节点,子会话完整原子图谱作为子图块内联展开在父图谱中,递归嵌套,可折叠;双击仍跳转 tool-call);可行性研究见 `research-t5/E-child-session-data.md`,设计见 `issues/t6-child-graph.md`。远景 fog = 跨会话循环。
 - **图谱即主界面**:替换 `conversation.session` 整栏的究极版——依赖渲染引擎成熟。
 - **多会话切换查看**:查看非当前会话的树——依赖单会话版定型。
 - **力导向图布局**:Obsidian 双链式自由布局——依赖横向时间线版定型。
