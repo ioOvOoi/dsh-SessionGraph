@@ -18,7 +18,7 @@
 
 ## Decisions so far
 
-<!-- 每解一个 ticket,在此追加一行:gist + 链接 -->
+- [03-实时事件接入](issues/03-实时事件接入.md) — 事件接入方案已定:Host 监听 `session/event`(唯一消息增补流,event.type 判别)+ session/created|disposed + subagent/start|end;反查 traceSession/listEvents;Client 经 sessionProjections/useProjection 消费。研究资产:`docs/dsh-host-event-system-research.md`、`research-dsh-platform.md`。
 
 ## Not yet specified
 
