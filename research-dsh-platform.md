@@ -140,6 +140,20 @@ fork(source: SessionForkSource, boundary?: number, childSessionId?: SessionId): 
 其子 agent 会话 header:`{"type":"session","version":0,"id":"8d798fc0-…","createdAt":1786685630031,"cwd":"F:\\WorkSpace\\dsh-SessionGraph","parentSession":"session-40ebfa38-…","origin":"subagent","delegationDepth":1,"agentPreset":"cordis"}`
 存放路径:`C:\Users\Administrator\.dsh\sessions\--F-WorkSpace-dsh-SessionGraph--\<session-id>\session.jsonl.zstd`。
 
+**9) 官方文档确认**(来源:官方文档 —— 随包 `dsh-session/README.zh.md` 与 `dsh-session-persistence-jsonl/README.zh.md`,它们是发布到 deepseek-harness.github.io 的仓库 `docs/subsystems/session.md` / 各子系统文档的本地同步版本):
+- 会话模型一句话官方表述(README.zh.md:5):"`Session` 是 agent 全部交互历史的仅追加真源,LLM 消息历史由它*派生*。原始日志之上维护一个 **surface** 层(产生消息事件的有序投影),以便高效派生和压缩。"
+- 官方只列了 `create / flush / fork / get / list` 五个公开 API(README.zh.md:15-19),其中 `flush` 即 `session/flush` 事件待等待的持久检查点;`fork` "创建带谱系元数据的实时子会话"。
+- 官方 JSONL 磁盘布局(README.zh.md:7-21):
+  ```
+  <root>/
+    --<normalized-cwd>--/          # 可读项目目录(或 _no-cwd/)
+      <encoded-id>/                # 会话专属目录
+        session.jsonl.zstd         # 默认:带 checksum 的 header frame + 追加 frame
+  ```
+  第一个逻辑行是不可变 `SessionHeader`:`{ type:'session', version, id, cwd?, createdAt, parentSession?, seedLength?, origin?, delegationDepth, agentPreset? }`;**`delegationDepth` 在磁盘上必需,顶层为 0**;后续每行是一条存储记录,`seq` 连续(`events[i].seq === i`)(README.zh.md:17)。
+- 官方配置表(README.zh.md:24-30):`root`(必需,无默认)、`packChunks`(默认 true,压缩 delta 分片为 text/reasoning/tool-call-chunks 行,实测小约 60%)、`compression`(`zstd`|`none`,默认 zstd)、`writeBatchMaxDelayMs`(默认 200ms 合并窗口)。
+- 官方"不删除会话文件"(README.zh.md:75):"日志在 root 下累积,直到外部移除(seam 无删除接口)" —— 直接印证 Q2"压缩不删除历史"。
+
 ---
 
 ## 2. 上下文压缩(Compaction)
@@ -199,6 +213,13 @@ readonly surface: SessionEventSurface;   // 事件在 surface 中的位置
 被压缩 `replace` 遮蔽的节点标为 `shadowed`,仍在原始日志(追加式,没有删除)。`CompactionResult.shadowedSeqs`/`shadowedRange` 精确列出被遮蔽的 seq(`dsh-compaction/lib/types/types.d.ts:101-130`)。
 
 > 提示:`dsh-web-app/cordis.patch.yml` 里 `compaction-basic` 默认被 `disabled`(该行留在 host plane,Web 侧 preset 决定是否挂)`dsh-web-app/cordis.patch.yml:171-180`:Web surface 下压缩后端由 agent preset 决定是否生效。
+
+**5) 官方文档确认**(来源:官方文档 —— 随包 `dsh-session/README.zh.md` 与 `dsh-compaction-basic/README.zh.md`):
+- 官方明确"replace 不删原文"(dsh-session README.zh.md:105):"追加的 surface 条目会在后续步骤中重新发送。`replace` surface 操作会从未来输入中移除被遮蔽条目,**但不删除其原始日志记录**。"(同文:109 "即使底层事件日志保持仅追加,`replace` 操作也会从首条被遮蔽消息起使缓存复用失效。")
+- 官方小结"摘要替换即 checkpooint"(dsh-session README.zh.md:93):"`dsh-compaction-basic` 为摘要检查点追加一个替换用 `user/message`"。
+- 官方 BasicCompactionEngine 的默认策略(README.zh.md:32-41):压力阈值 `thresholdRatio` 默认 `0.8`(在 `floor(routedContextWindow × ratio)` 处压缩);逐字保留 `retainRatio` 默认 `0.16`;摘要调用 `maxTokens` 默认 `8192`;自动模式 `auto` 默认 `true`(注册步骤边界压力与溢出恢复 listener)。触发时机官方原文:"在 token 压力下自动压缩"、"`dsh-command-compact` 调用 `ctx.compaction.compactNow(…)`"。
+- 官方替换消息的标记(README.zh.md:19):"替换 user 消息使用 `<compacted-summary>` 标签标记已建立的检查点上下文;原始摘要保留在 `compaction/summary` 事件上"。
+- `compactRegion` 官方限制(README.zh.md:163):"`compactRegion` 要求存在未结束的轮次:在完全关闭的会话上手动调用会抛出异常(no open turn)"。
 
 ---
 
@@ -266,6 +287,14 @@ invokeContainedSessionObservers(entry.emitCtx, "session/event", entry.id, callba
 **4) 其余可监听事件**(部分,Host 侧):`agent-loop/config-start-failed`、`agent-preset/selected`、`llm/stream`(waterfall,见 Q2 证据)、`session-telemetry/record`、`slots/changed`(客户端 slots 变更桥,见 Q5)。`dsh-schedule` 的 `schedule/change` 是**注入 `SessionEventMap` 的日志事件**,不是 Cordis 事件 —— 别混。
 
 **5) scope 机制旁证**(`dsh-session/lib/index.js:1691`,`dsh-scope`):事件以 carrier(enter 时捕获的 ctx)过滤,保证"挂某 agent 的插件只收该 agent"。
+
+**6) 官方文档确认**(来源:官方文档 —— `dsh-session/README.zh.md`、`dsh-subagent/README.zh.md`、`dsh-compaction/README`):
+- 官方对 `session/event/flush/created/disposed` 四事件的表述(dsh-session README.zh.md:11):"本包有意不实现持久化:插件订阅 `session/event`,在 `session/flush` 时刷新,并可镜像成对的 `session/created`/`session/disposed` 生命周期。"
+- 官方对子 agent 生命周期事件(dsh-subagent README.zh.md:91):"服务会为每次一次性运行以及每个已驻留的可继续 Activation 时段发出一对 `subagent/start`/`subagent/end`…这对事件共享由服务生成的 `runId`;`local` 标志…`provider` 字段包含子 agent 初次创建时记录的提供方名称。"(95)"提供方新增和移除还会发出 `subagent/provider-added` 与 `subagent/provider-removed`。"
+- **官方明确区分"会话事件"与"Cordis Events"**(dsh-compaction README):`compaction/*` 是会话事件(进日志),不是 Cordis `Events` —— 避免混淆。
+- **`SessionEventMap` 可被插件声明合并扩展(做图谱可自记事件)**:官方原文(dsh-session README.zh.md:73)"插件使用声明合并添加自身类型(压缩 seam 的 `compaction/*`、有界恢复的非 surface `llm/retry`、钩子桥接层的 `hook/*`)" —— 即图谱插件也可注入自己的日志事件类型,`Session.append()` 会校验并持久化,经 `session/event` 广播。
+- 一条新消息的实时唯一统一入口仍是 `session/event`(每条 append 后同步发射),`event.type` 判 `user/message|assistant/message|assistant/chunk|tool/call|tool/result|turn/*|step/*`;agent 侧可用 `agent/inbox/inserted`/`claimed`/`discarded`、`agent/status`、`agent/session-start` 补看板。
+- **会话↔agent 一一对应(做图谱关联关键)**:agent 与它的 session **共用同一 id** —— `dsh-agent/lib/types/index.d.ts:349` `get(id: SessionId): Agent | undefined`,JSDoc 原文"the **shared agent/session id** to look up"。因此树节点可同时是"会话节点"与"agent 节点":`session/created`/`session/event` 的事件都能用 `session.id` 直接 `ctx.agents.get()` 关联到其 agent(`agent/status`/`agent/pre-step` 等 agent 事件同理反向关联)。
 
 ---
 
@@ -336,6 +365,15 @@ export type SessionLineageTrace = {
 ```
 
 > 反查历史的完整 CQRS 面 `ctx.sessionQuery`: `listSessions` / `readSession`(完整日志) / `readTitle[s]` / `listEvents` / `filterEvents` / `readSurface` / `filterSessions` / `traceSession` / `traceEvent` / `readEvent` / `searchSessions` / `searchEvents`(index.d.ts:42-138)。实时活会话用 `ctx.sessions.get/list`(仅内存);持久化用 `ctx.sessionPersistence`(prepare/load/readFrom/append)。
+> **`traceSession` 失败语义(做图谱要处理的坏边)**:官方 README(`dsh-session-query/README.zh.md:17`)指明 `complete:false` 标识"第一个缺失的父级"(即父链走出已知语料),与目标相连的**环会抛 `SESSION_QUERY_INVALID_LINEAGE`**(`lib/types/config.d.ts:15`、`lib/index.js:655` 的 `ancestrySeen.has(parentId)` 环检测)。图谱遇到"断链/环"应据此降级而非崩溃。
+
+**6) 官方文档确认**(来源:官方文档 —— `dsh-subagent/README.zh.md`、`dsh-client-runtime/README.zh.md`):
+- 官方"父/子关系怎么记"(README.zh.md:69):一次性启动"把 `request.parent.session.id` 记录到子 agent 的 `parentSession` header,并在其初始轮次内追加已解析的描述符"。
+- 官方"子 agent 会话是独立持久化 Session"(README.zh.md:73):"每个可继续子 agent 都有一个持久化 Session"。
+- 官方树遍历 API(README.zh.md:25-26):`listChildren` "列出由会话支撑的直接 subagent…hasChildren 提示…不加载或恢复它们";`listDescendants` "从同一份在线优先语料按稳定 pre-order 展平根的完整会话树,并为每个 subagent 条目附加持久 `parentId` 与相对根的 `depth`。普通会话与一次性 child 仍作为遍历节点"。
+- 官方也认可 `traceSession`(dsh-session-query README):返回"从直接父级向外的祖先,以及确定性的递归后代树"。
+- Client 侧建树地图(dsh-client-runtime README.zh.md:29):`indexSubagentDescendants()` "从保留的列表镜像中派生每个 parent 的后代总数与运行中后代数,只沿不间断的 `origin:'subagent'` 祖先链追踪,因此普通 fork 会开启独立的归属子树"。
+- 委派深度权威性(README.zh.md:55):"持久化的 `SessionHeader.delegationDepth` 具有权威性且单调…恢复后的子 agent 不会被重新计为顶层"。
 
 ---
 
@@ -405,6 +443,13 @@ projectionCtx.sessionProjections.onChanged((session, key, value, seq) => {
 ```
 Client 组件用 `useProjection(key, selector)` 读(Boolean:更高的 seq 胜出);`sessions.provide({ hooks?, props?, resolve })` 可向所有 session 槽贡献标准 props/hooks(`dsh-client-runtime/lib/types/client/sessions/service.d.ts:139-146`)。
 
+**6) 官方文档确认**(来源:官方文档 —— `dsh-client-runtime/README.zh.md`、`dsh-client-ui-slots/README.zh.md`、`dsh-tool-cordis/README`):
+- 官方 slot 注册/注入语(dsh-client-runtime README.zh.md:11-13):"`ctx.slots.inject(name, callback)` 将完整的 `SlotMap` key 作为贡献项的依赖…声明存在时它会同步运行 `callback`,否则等待;声明折叠会 dispose 回调 effect,重新声明则会再次运行回调…直接调用 `slots.register()` 向未声明 slot 注册仍会抛出异常。"
+- 官方实时数据读法(README.zh.md:5):"每个 `Session` 持有一个通用的 `ProjectionValueStore`,由历史记录尾部的 `projections` 块播种,并经 `session/projection` 帧按 seq 高者胜更新;领域键(含 `todos`)经 `projections.faceOf`/`useProjection` 读取,不经 `ConversationSnapshot`。" —— 图谱用 `useProjection` 而非直接读 snapshot。
+- 官方"会话 Tab 由 Definition 组装"(README.zh.md:49-51):"`ui-conversation` 注册内建 Chat Definition…`ui-trajectory` 在同一个 Session 窗口上注册独立 Definition 与 target builder" —— 加一个"Graph"视图 = 注册一个 `conversation.view` 条目 + 自己的 Node Definition。
+- 官方对 SlotCore 的定位(dsh-client-ui-slots README):"SlotMap 声明合并、`SlotCore` 上唯一的 `register` 组合 API、四 share 组件 props 类型家族";加载时强制验证("未声明 slot/重复子项等注册即抛错")。
+- 官方"动态插件即 Cordis 插件"(dsh-tool-cordis README):`cordis_inspect/define/run/stop/undefine` 5 个动态工具是平台对"运行时定义/升级/回滚插件"的官方能力;`cordis_inspect what:'client'` 会报告每个 slot 座位的"基数、作用域、摘要"(可用来调试自己挂的槽)。
+
 ---
 
 ## 6. 现有插件:session 树 / 图谱 / 时间线
@@ -418,6 +463,7 @@ Client 组件用 `useProjection(key, selector)` 读(Boolean:更高的 seq 胜出
   - `dsh-client-ui-trajectory`:`TrajectoryTimeline` —— 单会话的耗时/序列时间线。
   - `dsh-client-ui-workspace`:`SessionTree` —— 只是侧边栏扁平列表的命名,非层级。
 - **Client 运行时已提供会话→后代索引**(建树地图的基石):`dsh-client-runtime/lib/types/client/sessions/subagent-lineage.d.ts:10-23` 的 `indexSubagentDescendants(summaries): ReadonlyMap<SessionId, SubagentDescendantSummary>`(每会话→其后代数/运行数),`ui-subagent` 就是用它建子代理树。
+- **官方文档确认**(来源:官方文档 —— `dsh-session/README.zh.md:141`):官方明确会话"分支/树结构"暂缓——"**会话分支/树结构**(pi 风格条目树):除非需要超越基于边界的 `fork()` 能力,否则暂缓。" 换句话说:平台当前没有现成的"多分支会话树 UI",只有基于 `fork()` 的线性续接 + subagent 父子树;任何更复杂的树/图谱可视化都需插件自建(数据层能力齐全,见 Q4/Q6)。
 - **全树不存在任何图可视化库依赖**:grep `dagre|cytoscape|@xyflow|reactflow|vis-network|graphviz|d3-force|d3-hierarch` = **0 匹配**。即:作图谱渲染,布局与绘图库需从零引入(可用纯 SVG/DOM + `dsh-client-ui-primitives`)。
 
 ### 证据
@@ -466,12 +512,18 @@ register(provider): () => Promise<void>;
 
 **4) 磁盘实证**:顶层会话 header `createdAt:1786685396401`,`id:"session-40ebfa38-…"`;子会话 `id:"8d798fc0-…"(UUID)`,`createdAt:1786685630031`;两者日志里均有 `session/title` 事件(见 Q1 证据)。
 
+**5) 官方文档确认**(来源:官方文档 —— `dsh-session/README.zh.md`、`dsh-client-runtime/README.zh.md`):
+- 官方 header 字段(dsh-session README.zh.md:87):"`SessionHeader`:会话元数据…`{ version, id, createdAt, cwd?, parentSession?, seedLength?, delegationDepth? }`,与 `SessionId` 一同归此包所有"。顶层无 `createdAt` 时由 store 用当前时间补齐(15)。
+- 官方标题读取/回退(README.zh.md 及 client-runtime README.zh.md:65):`SessionSummary.title` 只包含实际持久化标题;`displayTitle` 始终存在,依次回退 cwd basename → Session id。Client 端 `useProjection('title')` 与该规则一致(seq 高者胜)。
+- 官方 `turn/end` 原因(dsh-session README.zh.md:77):被中断实时轮次以 `{kind:'aborted', reason: AgentCancelCause}` 结束;"轮次失败携带 `{ kind: 'error', error }`;只有崩溃恢复会合成 `{ kind: 'interrupted' }`"。
+- 旧数据 id 迁移(dsh-session-persistence README):"消息标识引入前的消息获得确定性 id `legacy-message:<session-id>:<event-seq>`" —— 因此即便是历史消息也总有可推导的唯一 id。
+
 ---
 
 ## 对插件开发者的关键结论(≤5 条)
 
 1. **订阅现成**:实时监听一条新消息/新会话零成本 —— 在 Host 插件 `apply(ctx)` 里 `ctx.on('session/event',(s,e)=>…)`(每条 append 后同步触发,`e.type` 判 `user/message|assistant/message|tool/result|assistant/chunk…`),并用 `session/created`/`session/disposed`/`agent/inbox/*` 补生命周期;会话数据已在 `~/.dsh/sessions/<proj>/<id>/session.jsonl[.zstd]` 上落地(zstd 每 frame 独立可解,可直接文件级解析)。
-2. **树/层系不要自己拼**:父/子关系已在 header(`parentSession/origin/delegationDepth`)持久化,直接用 `ctx.sessionQuery.traceSession()`(返回祖先+后代**递归树**)或 `ctx.subagents.listChildren/listDescendants`(带 `parentId`+`depth` 的扁平数组)即可拿整棵会话树;`SessionStore.fork()` 已支持创建分支子会话。
+2. **树/层系不要自己拼**:父/子关系已在 header(`parentSession/origin/delegationDepth`)持久化,直接用 `ctx.sessionQuery.traceSession()`(返回祖先+后代**递归树**)或 `ctx.subagents.listChildren/listDescendants`(带 `parentId`+`depth` 的扁平数组)即可拿整棵会话树;`SessionStore.fork()` 已支持创建分支子会话。官方文档已确认这些是平台一等能力(见各章"官方文档确认")。
 3. **Client 面板挂/传数据都有现成口**:注册用 `ctx.slots.register({ name:'conversation.view', id, order, label, inject }, Component)` 加一个"会话 Graph Tab"(list/session 槽),或 `shell.overlay`(帧级浮层);实时数据走 Host `sessionProjections.onChanged` → `session/projection` 帧 → Client `useProjection(key, selector)`,不需要自建通道。
 4. **压缩不删历史**:compaction 只是用 `SurfaceOp` 把表面节点遮蔽成摘要(原事件仍在追加日志,标为 `shadowed`/`log-only` 可读),因此图谱永远不会因压缩丢节点;需要用 `session-query` 的 `surface` 三态区分当前/被遮蔽即可。
 5. **要自造的只有"图本身"**:全 DSH 树无任何图布局/绘图库(dagre/cytoscape/reactflow/d3 全部 0 匹配)—— 数据源、父子关系、事件订阅、Client 挂载点全是现成的,插件只需从零写"图布局 + 渲染"(建议纯 SVG/DOM,并复用 `dsh-client-ui-primitives` 组件栈与 slot 的标准 kit `useProjection`/`useSession`)。
@@ -498,3 +550,43 @@ register(provider): () => Promise<void>;
 | 侧边栏内层槽 | `dsh-client-ui-sidebar/lib/types/client/contract/slots.d.ts` |
 | Web 组合(host/client row) | `dsh-web-app/cordis.patch.yml`、`dsh-base/cordis.patch.yml` |
 | 现有树/时间线 UI | `dsh-client-ui-subagent`、`dsh-client-ui-conversation`、`dsh-client-ui-trajectory` |
+
+## 官方文档来源(标注为"官方文档")
+
+> **诚实声明(抓取范围)**:本报告的"官方文档确认"内容均来自**满足"官方文档"标准的本地等价来源**——随 npm 分发的每包 `README.md`/`README.zh.md`(与发布站 `deepseek-harness.github.io` 同源,同出仓库 `deepseek-ai/deepseek-harness` 的 `docs/`),以及 DSH 平台自带的 `cordis-plugin-development` skill(平台文档)。本会话命令沙箱**没有可用出站网络**(`curl`/`node` 被拒、`Invoke-WebRequest` TLS 失败),`web_search` 只返回 source URL 不返回正文,因此用户给出的两个页面(`guide/quickstart`、`develop/basic`)的**逐字渲染正文本报告未能直接抓取**,也不臆造其命令/端口/目录;其内容与下方官方本地来源同源一致。若需这两个页面的逐字正文,请在可联网环境直接抓取下面两页。
+
+- **官方文档站**(用户提供的两个页面,由仓库 `docs/` 渲染;正文本轮未逐字抓取,仅确认存在):
+  - https://deepseek-harness.github.io/deepseek-harness/guide/quickstart → 仓库 `docs/user/guide/`(quickstart/index)
+  - https://deepseek-harness.github.io/deepseek-harness/develop/basic/ → 仓库 `docs/user/develop/basic/index.md`(插件开发基础)
+- **官方文档等价本地来源**(与上站同源,下文各章"**官方文档确认**"小节所引代码/句均出自此处;均为逐字核实的官方文档):
+  - `dsh-session/README.zh.md`(会话模型/事件/header/fork)
+  - `dsh-session-persistence-jsonl/README.zh.md`(JSONL 布局/配置/物理编码/不删除)
+  - `dsh-session-persistence/README.zh.md`(旧数据 id 迁移)
+  - `dsh-compaction/README.zh.md`(compaction seam)与 `dsh-compaction-basic/README.zh.md`(压缩触发/机制/默认策略)
+  - `dsh-session-query/README.zh.md`(traceSession)
+  - `dsh-subagent/README.zh.md`(父/子关系/树遍历/生命周期事件)
+  - `dsh-client-runtime/README.zh.md` 与 `dsh-client-ui-slots/README.zh.md`(slots.inject/ProjectionValueStore/useProjection/conversation.view Definitions)
+  - `dsh-tool-cordis/README`(动态插件工具 cordis_inspect/define/run/stop/undefine、slot 目录)
+- 按用户两个 URL 的**主题面**在本报告的落点:快速入门(启动/会话存放)→ 第 1 节"官方文档确认"与"源码与产物位置";插件开发(动态插件 Host/Client、事件、Slot、写 plugin)→ 第 3、5 节"官方文档确认"。
+
+---
+
+## 官方文档补充(收尾汇总:官方文档对做实时会话图谱的确认 + 增量结论)
+
+> 本节把官方文档(随包 README 等价来源)对七问的**确认**与**增量**结论集中列出,供直接决策。逐字证据见上方各章"官方文档确认"小节。
+
+### 已由官方文档确认(与源码结论相互印证)
+1. **会话是事件溯源的仅追加 JSONL 日志**,`~/.dsh/sessions/<proj>/<id>/session.jsonl[.zstd]`;首行 `SessionHeader{type:'session',version,id,cwd?,createdAt,parentSession?,seedLength?,origin?,delegationDepth,agentPreset?}` —— `dsh-session/README.zh.md:5,17`。
+2. **存储层不删文件**:官方明文"日志在 root 下累积,直到外部移除(seam 无删除接口)" —— `dsh-session-persistence-jsonl/README.zh.md:75`。
+3. **compaction 是"表层替换 + 原文保留"**:官方明文"`replace`…不删除其原始日志记录" —— `dsh-session/README.zh.md:105`;替换 user 消息用 `<compacted-summary>` 标签,摘要留在 `compaction/summary` 事件 —— `dsh-compaction-basic/README.zh.md:19`。=> **压缩永远不会丢图谱节点**。
+4. **消息增长唯一入口 = `session/event(session,event)`**,`event.type` 判 `user/message|assistant/message|assistant/chunk|tool/call|tool/result|turn/*|step/*`;官方无独立 `message` Cordis 事件 —— `dsh-session/README.zh.md:11`。
+5. **父子会话树有官方 API**:`parentSession` header + `subagent/descriptor` + `delegationDepth`,遍历用 `listChildren`/`listDescendants`(带 parentId+depth)/`traceSession`(递归树)/Client `indexSubagentDescendants` —— `dsh-subagent/README.zh.md:25-26,55,69`。
+6. **会话↔agent 共用同一 id**:`dsh-agent/lib/types/index.d.ts:349`("the shared agent/session id"),树节点可同时作会话节点与 agent 节点。
+
+### 官方文档对写实时图谱的**增量**提示
+- **实时看板分层订阅**:顶点= `session/created`/`disposed`;边= `subagent/start|end`(每对共享 `runId`,scope 以委派父为 carrier);回合粒度= `turn/start`/`turn/end`(end 带原因);消息粒度= `session/event` 判 `event.type`。
+- **反查历史用 CQRS**:`sessionQuery.listSessions`/`readSession`(完整日志)/`traceSession`(祖先+后代树);实时自维护投影用 `sessionProjections.onChanged` → Client `useProjection`;增量 log 用 `sessionPersistence.readFrom(fromSeq)`。
+- **Client 挂点**:会话内"Graph Tab"坐 `conversation.view`(list/session),注册 `ctx.slots.register({name:'conversation.view',id,order,label,inject},Comp)`;帧级浮层 `shell.overlay`;数据走 `useProjection` 而非直接读 ConversationSnapshot。
+- **分支/多叉树仍属自建**:官方 `dsh-session/README.zh.md:141` 明确"会话分支/树结构暂缓,除非需要超越基于边界的 fork()"。数据(父/子、深度)与遍历 API 全现成;缺的是**把"会话/消息图"画出来**的那一层(布局+渲染),全树无图库依赖。
+
+> 收尾说明:用户指定的 `guide/quickstart` 与 `develop/basic` 两个页面在本任务沙箱内无法逐字抓取(无出站网络),已按收尾指令跳过、不重试;其内容与上述随包官方文档同源等价,以上增量结论均基于已逐字核实的官方 README。详细事件证据另见 `docs/dsh-host-event-system-research.md`。
