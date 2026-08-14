@@ -137,6 +137,9 @@ return {
       return parts.join('\n')
     }
 
+    // 遮蔽阈值：被遮蔽节点数 < 此值时拒绝（信息量不足不值得遮蔽）
+    const MIN_SHADOW = 4
+
     // ═══════════════════════════════════════════════════════════════════
     //  busy 守卫：jump 前的四项检查
     //  ① surface 完整性(末 seq == events 末 seq)  → 由 jump RPC 调用处单独做
@@ -219,49 +222,47 @@ return {
         return { ok: false, reason: 'nothing-to-shadow' }
       }
 
-      // 5. 遮蔽阈值：被遮蔽节点数 ≤ 2 时拒绝（信息量不足）
-      if (shadowedSeqs.length <= 2) {
+      // 5. 遮蔽阈值：被遮蔽节点数不足时不执行（信息量不足不值得遮蔽）
+      if (shadowedSeqs.length < MIN_SHADOW) {
         return { ok: false, reason: 'nothing-to-shadow' }
       }
 
       // 6. 构造摘要（手工模板，不调 LLM）
-      //    取被遮蔽节点的首尾 text 各 ~20 字，跳过 turn 节点（turn 不进 surface，这里做防御）
+      //    取被遮蔽节点的首尾 text 各 ~20 字；只索引被遮蔽节点对应事件，避免全量扫描
       const truncate = (s, max) => {
         if (!s) return ''
         return s.length > max ? s.slice(0, max) + '…' : s
       }
-      const nodeTextMap = {}
-      // 从 session.events 构建 seq→text 映射，取 content 文本
+      // 一次性建立 seq→event 索引，只收集被遮蔽范围的事件（events 的 seq 不一定等于数组下标）
+      const shadowedSet = new Set(shadowedSeqs)
+      const shadowedEventMap = new Map()
       for (const ev of events) {
-        if (ev.seq !== undefined) {
-          const d = ev.data
-          if (ev.type === 'user/message' && d && d.content) {
-            nodeTextMap[ev.seq] = textOf(d.content)
-          } else if (ev.type === 'assistant/message' && d && d.message && d.message.content) {
-            nodeTextMap[ev.seq] = textOf(d.message.content)
-          } else if (ev.type === 'tool/call' && d) {
-            nodeTextMap[ev.seq] = '[工具:' + (d.name || 'unknown') + ']'
-          } else if (ev.type === 'tool/result' && d && d.message && d.message.content) {
-            nodeTextMap[ev.seq] = textOf(d.message.content)
-          }
+        if (ev.seq !== undefined && shadowedSet.has(ev.seq)) {
+          shadowedEventMap.set(ev.seq, ev)
         }
       }
-
+      // 从索引中提取文本（复用 textOf）
+      const seqText = (seq) => {
+        const ev = shadowedEventMap.get(seq)
+        if (!ev) return ''
+        const d = ev.data
+        if (ev.type === 'user/message' && d && d.content) return textOf(d.content)
+        if (ev.type === 'assistant/message' && d && d.message && d.message.content) return textOf(d.message.content)
+        if (ev.type === 'tool/call' && d) return '[工具:' + (d.name || 'unknown') + ']'
+        if (ev.type === 'tool/result' && d && d.message && d.message.content) return textOf(d.message.content)
+        return ''
+      }
       // 找首条非空文本节点
       let firstText = ''
       for (const s of shadowedSeqs) {
-        if (nodeTextMap[s] && nodeTextMap[s].length > 0) {
-          firstText = nodeTextMap[s]
-          break
-        }
+        const t = seqText(s)
+        if (t.length > 0) { firstText = t; break }
       }
       // 找末条非空文本节点
       let lastText = ''
       for (let i = shadowedSeqs.length - 1; i >= 0; i--) {
-        if (nodeTextMap[shadowedSeqs[i]] && nodeTextMap[shadowedSeqs[i]].length > 0) {
-          lastText = nodeTextMap[shadowedSeqs[i]]
-          break
-        }
+        const t = seqText(shadowedSeqs[i])
+        if (t.length > 0) { lastText = t; break }
       }
       const summary = '分支切换:遮蔽 ' + shadowedSeqs.length + ' 条 · 首条缩略:「' + truncate(firstText, 20) + '」 · 末条缩略:「' + truncate(lastText, 20) + '」'
 
