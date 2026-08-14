@@ -13,7 +13,7 @@
 - **HITL 纪律**:本图大量决策必须由用户本人拍板(演示/分享目标下的视觉与交互取舍)。agent 不得替用户选。
 - **平台事实**以 `research-dsh-platform.md` 为准,查证后再写代码,禁止猜测 DSH API。
 - **参考实现**:DSH 自带 `ui-trajectory` 插件已占据 `conversation.view` 环(chat/trajectory/waterfall tab),是叠加面板的现成范式,实现前先读它。
-- **决策已定型**(grilling 产出):目的地=可运行原型;核心=会话树/图谱可视化;粒度=消息节点+agent切换特殊节点;范围=单会话树;交互=同会话跳转(非 fork);布局=横向时间线+分支;详情=全文+元数据;UI=先叠加面板(究极版图谱即主界面);验收=完整演示路径;用户=演示/分享;折叠=按 agent 分组;视觉=跟随主题。
+- **决策已定型**(grilling 产出):目的地=可运行原型;核心=会话树/图谱可视化;粒度=消息节点+agent切换特殊节点;范围=单会话树;交互=同会话跳转(非 fork);布局=横向时间线+分支;详情=全文+元数据;UI=先叠加面板(究极版图谱即主界面);验收=完整演示路径;用户=演示/分享;折叠=按 agent 分组;视觉=跟随主题,且**图谱视觉完全复刻 https://www.aicodingdictionary.com/(卡片+图谱+氛围,见 04 号 ticket 与 `docs/aicodingdictionary-visual-research.md`)**。
 - 术语与已定决策见仓库 `CONTEXT.md`(与本节保持同步)。
 
 ## Decisions so far
