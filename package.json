@@ -1,6 +1,6 @@
 {
   "name": "dsh-sessiongraph",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "SessionGraph:DSH 实时会话图谱插件(Obsidian 式横向编织图谱,常驻 details 布局列,全原子跳转)",
   "type": "module",
   "main": "lib/index.js",
@@ -22,7 +22,8 @@
     }
   },
   "files": [
-    "lib"
+    "lib",
+    "cordis.patch.yml"
   ],
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
