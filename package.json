@@ -1,12 +1,16 @@
 {
   "name": "dsh-sessiongraph",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "SessionGraph:DSH 实时会话图谱插件(Obsidian 式横向编织图谱,常驻 details 布局列,全原子跳转)",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
-    ".": "./lib/index.js",
-    "./client": "./lib/client.js"
+    ".": {
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "default": "./lib/client.js"
+    }
   },
   "dsh": {
     "bundle": {
@@ -27,8 +31,14 @@
   ],
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-invariants": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-tools": "^0.1.0-rc.6",
     "react": "^18.2.0"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ioOvOoi/dsh-SessionGraph.git"
+  },
+  "author": "ioOvOoi"
 }
