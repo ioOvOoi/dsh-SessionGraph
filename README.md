@@ -8,7 +8,7 @@ SessionGraph:DSH 实时会话图谱插件。把当前会话渲染成 **Obsidian 
 
 ```bash
 # 在 DSH 所在的机器上,安装到你的 profile(以 web 为例)
-dsh plugin --profile web add github:ioOvOoi/dsh-SessionGraph#v0.1.1
+dsh plugin --profile web add github:ioOvOoi/dsh-SessionGraph#v0.1.4
 ```
 
 安装完成后 **重启 dsh**(本包声明 `dsh.bundle`,安装器会自动把它加入 profile 的 bundles 并挂载插件行,**无需手动编辑任何配置**)。
