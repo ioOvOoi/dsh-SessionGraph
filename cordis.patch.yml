@@ -1,0 +1,10 @@
+# SessionGraph bundle patch — 自动挂载插件行
+
+> 本文件使 `dsh-sessiongraph` 声明为 bundle:执行
+> `dsh plugin --profile <name> add github:ioOvOoi/dsh-SessionGraph#v0.1.1` 后,
+> reconcilePlugins 自动把本包加入 profile 的 `dsh.profile.bundles`,本补丁随之叠加,
+> **无需手动编辑 cordis.patch.yml**。
+
+- insert:
+    - id: sessiongraph
+      name: 'dsh-sessiongraph'
